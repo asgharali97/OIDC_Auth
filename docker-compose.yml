@@ -1,0 +1,15 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    container_name: oidc-db
+    restart: always
+    environment:
+      POSTGRES_USER: oidc
+      POSTGRES_PASSWORD: oidcpass
+      POSTGRES_DB: oidcdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
