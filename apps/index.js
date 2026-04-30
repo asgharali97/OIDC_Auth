@@ -4,7 +4,6 @@ import cookieParser from "cookie-parser";
 import session from "express-session";
 import cors from "cors";
 import helmet from "helmet";
-import crypto from 'crypto'
 dotenv.config();
 
 const app = express();
@@ -82,6 +81,5 @@ const PORT = process.env.PORT || 4000;
 
 app.listen(PORT, () => {
   console.log(`Auth server running on http://localhost:${PORT}`);
-  console.log(crypto.randomBytes(32).toString('hex'))
 });
 
