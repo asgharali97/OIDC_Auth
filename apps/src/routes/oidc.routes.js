@@ -1,5 +1,5 @@
 import express from "express";
-import { getKeys, getUserInfo } from "../controllers/oidc.controller";
+import { getKeys, getUserInfo } from "../controllers/oidc.controller.js";
 
 const router = express.Router();
 
