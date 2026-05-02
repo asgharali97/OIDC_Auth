@@ -21,7 +21,7 @@ export const clients = pgTable("clients", {
   id: text("id").primaryKey(),                       
   name: text("name").notNull(),                  
   clientSecretHash: text("client_secret_hash").notNull(),
-  redirectUris: text("redirect_uris").notNull(), 
+  redirectUris: text("redirect_uris").array().notNull(),
   scopes: text("scopes").array().notNull().default(["openid", "profile", "email"]),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

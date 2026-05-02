@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ALTER COLUMN "redirect_uris" SET DATA TYPE text[];
