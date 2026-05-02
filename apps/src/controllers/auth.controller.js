@@ -10,7 +10,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "secret";
 
 const authorization = async (req, res) => {
 
-  const { client_id, redirect_uri, state } = req.query;
+  const { client_id, redirect_uri, state, user_id } = req.query;
 
   if (!client_id || !redirect_uri) {
     return res.status(400).json({ error: "invalid_request" });
@@ -26,18 +26,22 @@ const authorization = async (req, res) => {
     return res.status(400).json({ error: "invalid_client" });
   }
 
-  if (client.redirectUri !== redirect_uri) {
+
+  if (!client.redirectUris.includes(redirect_uri)) {
     return res.status(400).json({ error: "invalid_redirect_uri" });
+  }
+
+  const userId = req.session?.userId || user_id;
+
+  if (!userId) {
+    return res.status(401).json({ error: "not_logged_in" });
   }
 
   const user = await db
     .select()
     .from(users)
-    .then((res) => res[0]);
-
-  if (!user) {
-    return res.status(400).json({ error: "no_user_found" });
-  }
+    .where(eq(users.id, userId))
+    .then((r) => r[0]);
 
   const code = crypto.randomBytes(32).toString("hex");
 
@@ -45,9 +49,11 @@ const authorization = async (req, res) => {
     code,
     userId: user.id,
     clientId: client_id,
-    expiresAt: new Date(Date.now() + 3 * 60 * 1000), // 3 min
+    redirectUri: redirect_uri,        
+    scope: "openid profile email",
+    expiresAt: new Date(Date.now() + 3 * 60 * 1000),
   });
-
+  console.log(code);
   const redirectUrl = `${redirect_uri}?code=${code}&state=${state}`;
 
   return res.redirect(redirectUrl);
