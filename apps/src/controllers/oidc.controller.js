@@ -4,16 +4,10 @@ import jwt from "jsonwebtoken";
 import { eq, and, gt } from "drizzle-orm";
 import { db } from "../db/client.js";
 import { clients, authCodes, tokens, users } from "../db/schema.js";
-import { readFileSync } from "fs";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
 import ApiError from "../utils/api-error.js";
 import ApiResponse from "../utils/api-response.js";
+import { privateKey, publicKey } from "../keys/keys.js";
 
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const privateKey = readFileSync(join(__dirname, "../keys/private.pem"), "utf8");
-const publicKey = readFileSync(join(__dirname, "../keys/public.pem"), "utf8");
 
 const ISSUER = process.env.ISSUER_URL || "http://localhost:4000";
 const CODE_EXPIRY_SECONDS = 300;
