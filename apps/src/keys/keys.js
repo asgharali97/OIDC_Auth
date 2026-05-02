@@ -1,11 +1,13 @@
-import fs from "fs";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-export const privateKey = fs.readFileSync(
-  "./apps/src/keys/private.pem",
-  "utf8"
-);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export const publicKey = fs.readFileSync(
-  "./apps/src/keys/public.pem",
-  "utf8"
-);
+export const privateKey = process.env.PRIVATE_KEY
+  ? process.env.PRIVATE_KEY.replace(/\\n/g, "\n")
+  : readFileSync(join(__dirname, "private.pem"), "utf8");
+
+export const publicKey = process.env.PUBLIC_KEY
+  ? process.env.PUBLIC_KEY.replace(/\\n/g, "\n")
+  : readFileSync(join(__dirname, "public.pem"), "utf8");
