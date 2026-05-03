@@ -110,7 +110,7 @@
       <button id="btn" onclick="handleLogin()">Sign in</button>
 
       <div class="footer">
-        No account? <a href="/ui/signup.html">Register</a>
+        No account? <a href="/ui/signup.html" id="register-link">Register</a>
       </div>
     </div>
 
@@ -123,6 +123,9 @@
 
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
+
+      document.getElementById("register-link").href =
+        `/ui/signup.html${next ? `?next=${encodeURIComponent(next)}` : ""}`;
 
       async function handleLogin() {
         const btn = document.getElementById("btn");
