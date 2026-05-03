@@ -84,6 +84,11 @@ const createClient = async (req, res, next) => {
 
 const listClients = async (req, res, next) => {
   const userId = req.session?.userId;
+
+  if (!userId) {
+    throw ApiError.unauthorized("Not logged in");
+  }
+
   const allClients = await db
     .select({
       id: clients.id,

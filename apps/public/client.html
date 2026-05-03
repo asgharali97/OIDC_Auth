@@ -1,173 +1,359 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Client Registration — OIDC Server</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #f5f5f5; min-height: 100vh; padding: 2rem 1rem; }
-    .container { max-width: 560px; margin: 0 auto; }
-    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
-    p.sub { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-    .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 1.5rem; }
-    .card h2 { font-size: 1.1rem; margin-bottom: 1.25rem; }
-    label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.25rem; margin-top: 1rem; }
-    label:first-of-type { margin-top: 0; }
-    input { width: 100%; padding: 0.6rem 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; transition: border 0.2s; }
-    input:focus { border-color: #6366f1; }
-    .hint { font-size: 0.78rem; color: #888; margin-top: 0.25rem; }
-    button { margin-top: 1.5rem; padding: 0.65rem 1.4rem; background: #6366f1; color: white; border: none; border-radius: 8px; font-size: 0.95rem; cursor: pointer; font-weight: 500; }
-    button:hover { background: #4f46e5; }
-    button:disabled { background: #a5b4fc; cursor: not-allowed; }
-    .error { margin-top: 1rem; padding: 0.6rem 0.8rem; background: #fef2f2; color: #dc2626; border-radius: 8px; font-size: 0.85rem; display: none; }
-    
-    .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 10; }
-    .modal-bg.show { display: flex; }
-    .modal { background: white; border-radius: 12px; padding: 2rem; max-width: 480px; width: 90%; }
-    .modal h2 { margin-bottom: 0.5rem; }
-    .modal p { font-size: 0.85rem; color: #666; margin-bottom: 1.25rem; }
-    .secret-box { background: #f5f5f5; border-radius: 8px; padding: 0.75rem 1rem; font-family: monospace; font-size: 0.85rem; word-break: break-all; margin-bottom: 0.5rem; }
-    .copy-btn { padding: 0.5rem 1rem; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-    .copy-btn:hover { background: #4f46e5; }
-    .close-btn { margin-top: 1rem; padding: 0.5rem 1rem; background: transparent; border: 1px solid #ddd; border-radius: 6px; cursor: pointer; font-size: 0.85rem; width: 100%; }
-
-    .client-item { padding: 0.75rem 0; border-bottom: 1px solid #f0f0f0; }
-    .client-item:last-child { border-bottom: none; }
-    .client-name { font-weight: 500; font-size: 0.95rem; }
-    .client-id { font-family: monospace; font-size: 0.78rem; color: #888; margin-top: 0.2rem; }
-    .client-uris { font-size: 0.78rem; color: #666; margin-top: 0.2rem; }
-    .empty { color: #aaa; font-size: 0.9rem; text-align: center; padding: 1rem 0; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>OIDC Server</h1>
-    <p class="sub">Register and manage OAuth clients</p>
-
-    <div class="card">
-      <h2>Register new client</h2>
-
-      <label>App name</label>
-      <input type="text" id="name" placeholder="My Assignment App" />
-
-      <label>Redirect URIs</label>
-      <input type="text" id="uris" placeholder="https://myapp.com/callback, http://localhost:3000/callback" />
-      <p class="hint">Comma separated. These are the URLs your app will redirect to after login.</p>
-
-      <label>Scopes</label>
-      <input type="text" id="scopes" value="openid profile email" />
-      <p class="hint">Space separated. Supported: openid, profile, email</p>
-
-      <div class="error" id="error"></div>
-      <button id="btn" onclick="createClient()">Register client</button>
-    </div>
-
-    <div class="card">
-      <h2>Registered clients</h2>
-      <div id="clients-list"><p class="empty">Loading...</p></div>
-    </div>
-  </div>
-
-  <!-- Secret modal — shown once after client creation -->
-  <div class="modal-bg" id="modal">
-    <div class="modal">
-      <h2>Client registered</h2>
-      <p>Save your client secret now — it will never be shown again.</p>
-      <p style="font-size:0.85rem;font-weight:500;margin-bottom:0.4rem">Client ID</p>
-      <div class="secret-box" id="modal-id"></div>
-      <p style="font-size:0.85rem;font-weight:500;margin-bottom:0.4rem;margin-top:0.75rem">Client Secret</p>
-      <div class="secret-box" id="modal-secret"></div>
-      <button class="copy-btn" onclick="copySecret()">Copy secret</button>
-      <button class="close-btn" onclick="closeModal()">I have saved it, close</button>
-    </div>
-  </div>
-
-  <script>
-    async function createClient() {
-      const btn = document.getElementById("btn");
-      const error = document.getElementById("error");
-      error.style.display = "none";
-      btn.disabled = true;
-      btn.textContent = "Registering...";
-
-      const uris = document.getElementById("uris").value
-        .split(",").map(u => u.trim()).filter(Boolean);
-      const scopes = document.getElementById("scopes").value
-        .split(" ").map(s => s.trim()).filter(Boolean);
-
-      try {
-        const res = await fetch("/admin/clients", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            name: document.getElementById("name").value,
-            redirectUris: uris,
-            scopes,
-          }),
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          error.textContent = data.error || "Failed to register client";
-          error.style.display = "block";
-          return;
-        }
-
-        document.getElementById("modal-id").textContent = data.data.id;
-        document.getElementById("modal-secret").textContent = data.data.clientSecret;
-        document.getElementById("modal").classList.add("show");
-
-        loadClients();
-        document.getElementById("name").value = "";
-        document.getElementById("uris").value = "";
-      } catch (e) {
-        error.textContent = "Something went wrong";
-        error.style.display = "block";
-      } finally {
-        btn.disabled = false;
-        btn.textContent = "Register client";
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Client Registration — OIDC Server</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
-    }
+      body {
+        font-family: system-ui, sans-serif;
+        background: #f5f5f5;
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+      .container {
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin-bottom: 0.25rem;
+      }
+      p.sub {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 2rem;
+      }
+      .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        margin-bottom: 1.5rem;
+      }
+      .card h2 {
+        font-size: 1.1rem;
+        margin-bottom: 1.25rem;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+        margin-top: 1rem;
+      }
+      label:first-of-type {
+        margin-top: 0;
+      }
+      input {
+        width: 100%;
+        padding: 0.6rem 0.8rem;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        outline: none;
+        transition: border 0.2s;
+      }
+      input:focus {
+        border-color: #6366f1;
+      }
+      .hint {
+        font-size: 0.78rem;
+        color: #888;
+        margin-top: 0.25rem;
+      }
+      button {
+        margin-top: 1.5rem;
+        padding: 0.65rem 1.4rem;
+        background: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        cursor: pointer;
+        font-weight: 500;
+      }
+      button:hover {
+        background: #4f46e5;
+      }
+      button:disabled {
+        background: #a5b4fc;
+        cursor: not-allowed;
+      }
+      .error {
+        margin-top: 1rem;
+        padding: 0.6rem 0.8rem;
+        background: #fef2f2;
+        color: #dc2626;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        display: none;
+      }
 
-    function copySecret() {
-      const secret = document.getElementById("modal-secret").textContent;
-      navigator.clipboard.writeText(secret);
-      document.querySelector(".copy-btn").textContent = "Copied!";
-      setTimeout(() => document.querySelector(".copy-btn").textContent = "Copy secret", 2000);
-    }
+      .modal-bg {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+      }
+      .modal-bg.show {
+        display: flex;
+      }
+      .modal {
+        background: white;
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 480px;
+        width: 90%;
+      }
+      .modal h2 {
+        margin-bottom: 0.5rem;
+      }
+      .modal p {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 1.25rem;
+      }
+      .secret-box {
+        background: #f5f5f5;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-family: monospace;
+        font-size: 0.85rem;
+        word-break: break-all;
+        margin-bottom: 0.5rem;
+      }
+      .copy-btn {
+        padding: 0.5rem 1rem;
+        background: #6366f1;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+      .copy-btn:hover {
+        background: #4f46e5;
+      }
+      .close-btn {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: transparent;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        width: 100%;
+      }
 
-    function closeModal() {
-      document.getElementById("modal").classList.remove("show");
-    }
+      .client-item {
+        padding: 0.75rem 0;
+        border-bottom: 1px solid #f0f0f0;
+      }
+      .client-item:last-child {
+        border-bottom: none;
+      }
+      .client-name {
+        font-weight: 500;
+        font-size: 0.95rem;
+      }
+      .client-id {
+        font-family: monospace;
+        font-size: 0.78rem;
+        color: #888;
+        margin-top: 0.2rem;
+      }
+      .client-uris {
+        font-size: 0.78rem;
+        color: #666;
+        margin-top: 0.2rem;
+      }
+      .empty {
+        color: #aaa;
+        font-size: 0.9rem;
+        text-align: center;
+        padding: 1rem 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>OIDC Server</h1>
+      <p class="sub">Register and manage OAuth clients</p>
 
-    async function loadClients() {
-      const list = document.getElementById("clients-list");
-      try {
-        const res = await fetch("/admin/clients", { credentials: "include" });
-        const data = await res.json();
-        const clients = data.data?.clients || [];
+      <div class="card">
+        <h2>Register new client</h2>
 
-        if (clients.length === 0) {
-          list.innerHTML = '<p class="empty">No clients registered yet</p>';
-          return;
+        <label>App name</label>
+        <input type="text" id="name" placeholder="My Assignment App" />
+
+        <label>Redirect URIs</label>
+        <input
+          type="text"
+          id="uris"
+          placeholder="https://myapp.com/callback, http://localhost:3000/callback"
+        />
+        <p class="hint">
+          Comma separated. These are the URLs your app will redirect to after
+          login.
+        </p>
+
+        <label>Scopes</label>
+        <input type="text" id="scopes" value="openid profile email" />
+        <p class="hint">Space separated. Supported: openid, profile, email</p>
+
+        <div class="error" id="error"></div>
+        <button id="btn" onclick="createClient()">Register client</button>
+      </div>
+
+      <div class="card">
+        <h2>Registered clients</h2>
+        <div id="clients-list"><p class="empty">Loading...</p></div>
+      </div>
+    </div>
+
+    <!-- Secret modal — shown once after client creation -->
+    <div class="modal-bg" id="modal">
+      <div class="modal">
+        <h2>Client registered</h2>
+        <p>Save your client secret now — it will never be shown again.</p>
+        <p style="font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem">
+          Client ID
+        </p>
+        <div class="secret-box" id="modal-id"></div>
+        <p
+          style="
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            margin-top: 0.75rem;
+          "
+        >
+          Client Secret
+        </p>
+        <div class="secret-box" id="modal-secret"></div>
+        <button class="copy-btn" onclick="copySecret()">Copy secret</button>
+        <button class="close-btn" onclick="closeModal()">
+          I have saved it, close
+        </button>
+      </div>
+    </div>
+
+    <script>
+      async function createClient() {
+        const btn = document.getElementById("btn");
+        const error = document.getElementById("error");
+        error.style.display = "none";
+        btn.disabled = true;
+        btn.textContent = "Registering...";
+
+        const uris = document
+          .getElementById("uris")
+          .value.split(",")
+          .map((u) => u.trim())
+          .filter(Boolean);
+        const scopes = document
+          .getElementById("scopes")
+          .value.split(" ")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        try {
+          const res = await fetch("/admin/clients", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              name: document.getElementById("name").value,
+              redirectUris: uris,
+              scopes,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            error.textContent = data.error || "Failed to register client";
+            error.style.display = "block";
+            return;
+          }
+
+          document.getElementById("modal-id").textContent = data.data.id;
+          document.getElementById("modal-secret").textContent =
+            data.data.clientSecret;
+          document.getElementById("modal").classList.add("show");
+
+          loadClients();
+          document.getElementById("name").value = "";
+          document.getElementById("uris").value = "";
+        } catch (e) {
+          error.textContent = "Something went wrong";
+          error.style.display = "block";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "Register client";
         }
+      }
 
-        list.innerHTML = clients.map(c => `
+      function copySecret() {
+        const secret = document.getElementById("modal-secret").textContent;
+        navigator.clipboard.writeText(secret);
+        document.querySelector(".copy-btn").textContent = "Copied!";
+        setTimeout(
+          () =>
+            (document.querySelector(".copy-btn").textContent = "Copy secret"),
+          2000,
+        );
+      }
+
+      function closeModal() {
+        document.getElementById("modal").classList.remove("show");
+      }
+
+      async function loadClients() {
+        const list = document.getElementById("clients-list");
+        try {
+          
+          const res = await fetch("/admin/clients", { credentials: "include" });
+
+          if (res.status === 401) {
+            window.location.href = "/ui/login.html";
+            return;
+          }
+
+          const data = await res.json();
+          const clients = data.data?.clients || [];
+
+          if (clients.length === 0) {
+            list.innerHTML = '<p class="empty">No clients registered yet</p>';
+            return;
+          }
+
+          list.innerHTML = clients
+            .map(
+              (c) => `
           <div class="client-item">
-            <div class="client-name">${c.name} ${c.isActive ? '' : '<span style="color:#dc2626;font-size:0.75rem">(disabled)</span>'}</div>
+            <div class="client-name">${c.name} ${c.isActive ? "" : '<span style="color:#dc2626;font-size:0.75rem">(disabled)</span>'}</div>
             <div class="client-id">ID: ${c.id}</div>
             <div class="client-uris">URIs: ${c.redirectUris.join(", ")}</div>
           </div>
-        `).join("");
-      } catch (e) {
-        list.innerHTML = '<p class="empty">Could not load clients</p>';
+        `,
+            )
+            .join("");
+        } catch (e) {
+          list.innerHTML = '<p class="empty">Could not load clients</p>';
+        }
       }
-    }
 
-    loadClients();
-  </script>
-</body>
+      loadClients();
+    </script>
+  </body>
 </html>

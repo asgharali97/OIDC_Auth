@@ -5,12 +5,20 @@ import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import cors from "cors";
 import helmet from "helmet";
+import { pool } from "./src/db/client.js";
+
 dotenv.config();
 
-
 const app = express();
+
+const PgSession = connectPgSimple(session);
+
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+}
 
 app.use(helmet());
 app.use(
@@ -27,6 +35,10 @@ app.use(cookieParser());
 
 app.use(
   session({
+    store: new PgSession({
+      pool,
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -50,12 +62,6 @@ app.use(
     },
   })
 );
-
-app.use((req, res, next) => {
-  const userid = req.session.userId
-  const session =  req.sessionID
-  next();
-});
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 app.use("/ui", express.static(join(__dirname, "public")));
