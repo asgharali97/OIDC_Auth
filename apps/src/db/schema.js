@@ -23,6 +23,7 @@ export const clients = pgTable("clients", {
   clientSecretHash: text("client_secret_hash").notNull(),
   redirectUris: text("redirect_uris").array().notNull(),
   scopes: text("scopes").array().notNull().default(["openid", "profile", "email"]),
+  createdBy: uuid("created_by").references(() => users.id),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

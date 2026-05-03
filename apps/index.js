@@ -1,3 +1,6 @@
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+
 import express from "express";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
@@ -5,6 +8,7 @@ import session from "express-session";
 import cors from "cors";
 import helmet from "helmet";
 dotenv.config();
+
 
 const app = express();
 
@@ -18,6 +22,9 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+
+
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
@@ -32,6 +39,27 @@ app.use(
   })
 );
 
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+        "script-src": ["'self'", "'unsafe-inline'"],
+        "script-src-attr": ["'unsafe-inline'"],
+      },
+    },
+  })
+);
+
+app.use((req, res, next) => {
+  const userid = req.session.userId
+  const session =  req.sessionID
+  next();
+});
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.use("/ui", express.static(join(__dirname, "public")));
+
 // Health check
 app.get("/health", (req, res) => {
   res.json({
@@ -40,6 +68,11 @@ app.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.get("/", (req, res) => {
+  res.redirect("/ui/login.html");
+});
+
 
 
 // Routes
