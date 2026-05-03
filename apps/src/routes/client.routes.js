@@ -5,8 +5,11 @@ import {
   getClient,
   toggleClient,
 } from "../controllers/client.conrtoller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
 
 const router = Router();
+
+router.use(requireAuth);
 
 router.post("/", createClient);
 router.get("/", listClients);
