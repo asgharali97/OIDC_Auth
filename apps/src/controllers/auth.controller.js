@@ -34,7 +34,8 @@ const authorization = async (req, res) => {
   const userId = req.session?.userId || user_id;
 
   if (!userId) {
-    return res.status(401).json({ error: "not_logged_in" });
+    req.session.pendingAuthorizeUrl = req.originalUrl;
+  return res.redirect(`/ui/login.html?next=${encodeURIComponent(req.originalUrl)}`);
   }
 
   const user = await db
