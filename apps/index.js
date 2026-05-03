@@ -16,9 +16,25 @@ const app = express();
 
 const PgSession = connectPgSimple(session);
 
-if (process.env.TRUST_PROXY) {
-  app.set("trust proxy", Number(process.env.TRUST_PROXY) || 1);
+// Behind nginx, Render, Railway, Fly, etc. X-Forwarded-Proto must be trusted
+// so Express sees HTTPS. Set TRUST_PROXY=0 to disable (e.g. local prod-like runs).
+const trustProxy =
+  process.env.TRUST_PROXY === "0"
+    ? false
+    : process.env.TRUST_PROXY
+      ? Number(process.env.TRUST_PROXY) || 1
+      : process.env.NODE_ENV === "production"
+        ? 1
+        : false;
+if (trustProxy !== false) {
+  app.set("trust proxy", trustProxy);
 }
+
+const isProd = process.env.NODE_ENV === "production";
+// Same-origin UI + API (this app): lax + secure is correct. Use SESSION_CROSS_SITE=1
+// only if the browser loads your UI from a different site than this API (then need none).
+const sessionSameSite =
+  isProd && process.env.SESSION_CROSS_SITE === "1" ? "none" : "lax";
 
 app.use(helmet());
 app.use(
@@ -44,8 +60,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // HTTPS only in prod
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: isProd,
+      sameSite: sessionSameSite,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
   })
